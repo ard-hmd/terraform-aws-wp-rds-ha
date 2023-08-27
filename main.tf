@@ -161,8 +161,8 @@ data "aws_ami" "amazon-linux" {
   owners      = ["amazon"]
 
   filter {
-    name   = "name"
-    values = ["amzn-ami-hvm-*-x86_64-ebs"]
+    name   = "image-id"
+    values = ["ami-0041b98fa770e38cd"]
   }
 }
 
@@ -347,7 +347,7 @@ resource "aws_security_group" "rds_sg" {
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
-    cidr_blocks = [aws_security_group.terramino_instance.id]
+    security_groups = [aws_security_group.terramino_instance.id]
   }
   egress {
     from_port   = 0
@@ -373,5 +373,13 @@ resource "aws_db_instance" "myinstance" {
   vpc_security_group_ids = ["${aws_security_group.rds_sg.id}"]
   skip_final_snapshot  = true
   publicly_accessible =  false
+  backup_retention_period = 7
   depends_on = [aws_db_subnet_group.rds_subnet_group]
+}
+
+resource "aws_db_instance" "replica-myinstance" {
+  instance_class       = "db.t2.micro"
+  skip_final_snapshot  = true
+  backup_retention_period = 7
+  replicate_source_db = aws_db_instance.myinstance.identifier
 }

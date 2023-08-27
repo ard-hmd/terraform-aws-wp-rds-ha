@@ -9,3 +9,11 @@ output "application_endpoint" {
 output "asg_name" {
   value = aws_autoscaling_group.terramino.name
 }
+
+output "rds-url" {
+  value = aws_db_instance.myinstance.endpoint
+}
+
+output "replica-url" {
+  value=aws_db_instance.replica-myinstance.endpoint
+}
