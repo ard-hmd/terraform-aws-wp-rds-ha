@@ -59,6 +59,15 @@ resource "aws_subnet" "private_subnet" {
   }
 }
 
+resource "aws_db_subnet_group" "rds_subnet_group" {
+  name       = "rds_subnet_group"
+  subnet_ids = aws_subnet.private_subnet.*.id
+
+  tags = {
+    Name = "Rds Subnet Group"
+  }
+}
+
 # Internet Gateway Configuration
 resource "aws_internet_gateway" "ig" {
   vpc_id = aws_vpc.vpc.id
@@ -330,4 +339,39 @@ resource "aws_security_group" "terramino_lb" {
   }
 
   vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_security_group" "rds_sg" {
+  name = "rds_sg"
+  ingress {
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    cidr_blocks = [aws_security_group.terramino_instance.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_db_instance" "myinstance" {
+  engine               = "mysql"
+  identifier           = "myrdsinstance"
+  allocated_storage    =  10
+  engine_version       = "5.7"
+  instance_class       = "db.t2.micro"
+  db_name              = "wpdb"
+  username             = "myrdsuser"
+  password             = "myrdspassword"
+  parameter_group_name = "default.mysql5.7"
+  db_subnet_group_name = "rds_subnet_group"
+  vpc_security_group_ids = ["${aws_security_group.rds_sg.id}"]
+  skip_final_snapshot  = true
+  publicly_accessible =  false
+  depends_on = [aws_db_subnet_group.rds_subnet_group]
 }
