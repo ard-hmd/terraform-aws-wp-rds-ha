@@ -166,15 +166,29 @@ data "aws_ami" "amazon-linux" {
   }
 }
 
+data "template_file" "init" {
+  template = "${file("user-data.sh.tpl")}"
+
+  vars = {
+    wp_host = "${aws_db_instance.myinstance.endpoint}"
+    wp_user = "${var.db_username}"
+    wp_pass = "${var.db_password}"
+  }
+}
+
 # Launch Configuration for Auto Scaling
 resource "aws_launch_configuration" "terramino" {
   name_prefix     = "learn-terraform-aws-asg-"
   image_id        = data.aws_ami.amazon-linux.id
   instance_type   = "t2.micro"
-  user_data       = file("user-data.sh")
+  # user_data       = file("user-data.sh")
+  user_data       = "${data.template_file.init.rendered}"
   key_name        = "kp-ahermand"
   security_groups = [aws_security_group.terramino_instance.id]
-  depends_on      = [aws_nat_gateway.nat]
+  depends_on      = [
+    aws_nat_gateway.nat,
+    aws_db_instance.myinstance
+    ]
 
   lifecycle {
     create_before_destroy = true
@@ -190,6 +204,10 @@ resource "aws_autoscaling_group" "terramino" {
   launch_configuration = aws_launch_configuration.terramino.name
   vpc_zone_identifier  = aws_subnet.private_subnet.*.id
   health_check_type    = "ELB"
+
+  depends_on = [
+    aws_launch_configuration.terramino
+  ]
 
   tag {
     key                 = "Name"
@@ -251,6 +269,10 @@ resource "aws_lb_listener" "terramino" {
   port              = "80"
   protocol          = "HTTP"
 
+  depends_on = [
+    aws_autoscaling_group.terramino
+  ]
+
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.terramino.arn
@@ -263,6 +285,10 @@ resource "aws_lb_target_group" "terramino" {
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.vpc.id
+
+  depends_on = [
+    aws_autoscaling_group.terramino
+  ]
 }
 
 # Auto Scaling Attachment Configuration
@@ -359,6 +385,9 @@ resource "aws_security_group" "rds_sg" {
   vpc_id = aws_vpc.vpc.id
 }
 
+variable "db_username" {}
+variable "db_password" {}
+
 resource "aws_db_instance" "myinstance" {
   engine               = "mysql"
   identifier           = "myrdsinstance"
@@ -366,8 +395,8 @@ resource "aws_db_instance" "myinstance" {
   engine_version       = "5.7"
   instance_class       = "db.t2.micro"
   db_name              = "wpdb"
-  username             = "myrdsuser"
-  password             = "myrdspassword"
+  username             = var.db_username
+  password             = var.db_password
   parameter_group_name = "default.mysql5.7"
   db_subnet_group_name = "rds_subnet_group"
   vpc_security_group_ids = ["${aws_security_group.rds_sg.id}"]

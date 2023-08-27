@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Modifiez ces valeurs et conservez-les en lieu sûr
-db_username=myrdsuser
-db_user_password=myrdspassword
+db_username=${wp_user}
+db_user_password=${wp_pass}
+db_host=${wp_host}
 db_name=wpdb
-db_host="myrdsinstance.c6wqjjevzbkj.eu-west-3.rds.amazonaws.com:3306"
 
 # installer le serveur LAMP
 sudo yum update -y
