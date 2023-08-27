@@ -14,6 +14,6 @@ output "rds-url" {
   value = aws_db_instance.myinstance.endpoint
 }
 
-output "replica-url" {
-  value=aws_db_instance.replica-myinstance.endpoint
-}
+# output "replica-url" {
+#   value=aws_db_instance.replica-myinstance.endpoint
+# }

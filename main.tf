@@ -402,13 +402,13 @@ resource "aws_db_instance" "myinstance" {
   vpc_security_group_ids = ["${aws_security_group.rds_sg.id}"]
   skip_final_snapshot  = true
   publicly_accessible =  false
-  backup_retention_period = 7
+  backup_retention_period = 1
   depends_on = [aws_db_subnet_group.rds_subnet_group]
 }
 
 resource "aws_db_instance" "replica-myinstance" {
   instance_class       = "db.t2.micro"
   skip_final_snapshot  = true
-  backup_retention_period = 7
+  backup_retention_period = 0
   replicate_source_db = aws_db_instance.myinstance.identifier
 }
