@@ -176,8 +176,8 @@ resource "aws_launch_configuration" "terramino" {
 resource "aws_autoscaling_group" "terramino" {
   name                 = "terramino"
   min_size             = 1
-  max_size             = 3
-  desired_capacity     = 1
+  max_size             = 2
+  desired_capacity     = 2
   launch_configuration = aws_launch_configuration.terramino.name
   vpc_zone_identifier  = aws_subnet.private_subnet.*.id
   health_check_type    = "ELB"
@@ -185,6 +185,40 @@ resource "aws_autoscaling_group" "terramino" {
   tag {
     key                 = "Name"
     value               = "HashiCorp Learn ASG - Terramino"
+    propagate_at_launch = true
+  }
+
+  lifecycle {
+    ignore_changes = [desired_capacity, target_group_arns]
+  }
+}
+
+# Launch Configuration for Auto Scaling
+resource "aws_launch_configuration" "bastion" {
+  name_prefix     = "learn-terraform-aws-asg-"
+  image_id        = data.aws_ami.amazon-linux.id
+  instance_type   = "t2.micro"
+  key_name        = "kp-ahermand"
+  security_groups = [aws_security_group.bastion_instance.id]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Auto Scaling Group Configuration
+resource "aws_autoscaling_group" "bastion" {
+  name                 = "bastion"
+  min_size             = 1
+  max_size             = 2
+  desired_capacity     = 1
+  launch_configuration = aws_launch_configuration.bastion.name
+  vpc_zone_identifier  = aws_subnet.public_subnet.*.id
+  health_check_type    = "ELB"
+
+  tag {
+    key                 = "Name"
+    value               = "HashiCorp Learn ASG - Bastion"
     propagate_at_launch = true
   }
 
@@ -237,6 +271,34 @@ resource "aws_security_group" "terramino_instance" {
     to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.terramino_lb.id]
+  }
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion_instance.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  vpc_id = aws_vpc.vpc.id
+}
+
+# Security Group for EC2 Instances
+resource "aws_security_group" "bastion_instance" {
+  name = "learn-asg-bastion-instance"
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
