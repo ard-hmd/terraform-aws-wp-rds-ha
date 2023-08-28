@@ -65,3 +65,18 @@ output "autoscaling_group_name" {
   description = "The name of the auto scaling group from the bastion ASG module."
   value       = module.asg_bastion.autoscaling_group_name
 }
+
+output "lb_arn" {
+  description = "ARN of the Load Balancer"
+  value       = module.lb_wordpress.lb_arn
+}
+
+output "lb_listener_arn" {
+  description = "ARN of the Load Balancer Listener"
+  value       = module.lb_wordpress.lb_listener_arn
+}
+
+output "lb_target_group_arn" {
+  description = "ARN of the Load Balancer Target Group"
+  value       = module.lb_wordpress.lb_target_group_arn
+}

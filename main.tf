@@ -70,48 +70,16 @@ module "asg_bastion" {
 }
 
 
-# # Load Balancer Configuration
-# resource "aws_lb" "wordpress" {
-#   name               = "learn-asg-wordpress-lb"
-#   internal           = false
-#   load_balancer_type = "application"
-#   security_groups    = [aws_security_group.wordpress_lb.id]
-#   subnets            = aws_subnet.public_subnet.*.id
-# }
+module "lb_wordpress" {
+  source             = "./modules/lb_wordpress"
+  lb_name            = "lb-wordpress"
+  security_group_id  = aws_security_group.wordpress_lb.id
+  public_subnets_ids = module.subnets.public_subnet_ids
+  target_group_name  = "lb-tgn-wordpress"
+  vpc_id             = module.vpc.vpc_id
+  asg_id             = module.asg_wordpress.asg_id
+}
 
-# # Load Balancer Listener Configuration
-# resource "aws_lb_listener" "wordpress" {
-#   load_balancer_arn = aws_lb.wordpress.arn
-#   port              = "80"
-#   protocol          = "HTTP"
-
-#   depends_on = [
-#     aws_autoscaling_group.wordpress
-#   ]
-
-#   default_action {
-#     type             = "forward"
-#     target_group_arn = aws_lb_target_group.wordpress.arn
-#   }
-# }
-
-# # Load Balancer Target Group Configuration
-# resource "aws_lb_target_group" "wordpress" {
-#   name     = "learn-asg-wordpress"
-#   port     = 80
-#   protocol = "HTTP"
-#   vpc_id   = aws_vpc.vpc.id
-
-#   depends_on = [
-#     aws_autoscaling_group.wordpress
-#   ]
-# }
-
-# # Auto Scaling Attachment Configuration
-# resource "aws_autoscaling_attachment" "wordpress" {
-#   autoscaling_group_name = aws_autoscaling_group.wordpress.id
-#   alb_target_group_arn   = aws_lb_target_group.wordpress.arn
-# }
 
 # Security Group for EC2 Instances
 resource "aws_security_group" "wordpress_instance" {
@@ -163,26 +131,26 @@ resource "aws_security_group" "bastion_instance" {
   vpc_id = module.vpc.vpc_id
 }
 
-# # Security Group for Load Balancer
-# resource "aws_security_group" "wordpress_lb" {
-#   name = "learn-asg-wordpress-lb"
+# Security Group for Load Balancer
+resource "aws_security_group" "wordpress_lb" {
+  name = "learn-asg-wordpress-lb"
 
-#   ingress {
-#     from_port   = 80
-#     to_port     = 80
-#     protocol    = "tcp"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   vpc_id = aws_vpc.vpc.id
-# }
+  vpc_id = module.vpc.vpc_id
+}
 
 # resource "aws_security_group" "rds_sg" {
 #   name = "rds_sg"
