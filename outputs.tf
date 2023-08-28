@@ -71,6 +71,11 @@ output "lb_arn" {
   value       = module.lb_wordpress.lb_arn
 }
 
+output "lb_dns_name" {
+  description = "ARN of the Load Balancer"
+  value       = module.lb_wordpress.lb_dns_name
+}
+
 output "lb_listener_arn" {
   description = "ARN of the Load Balancer Listener"
   value       = module.lb_wordpress.lb_listener_arn
@@ -79,4 +84,64 @@ output "lb_listener_arn" {
 output "lb_target_group_arn" {
   description = "ARN of the Load Balancer Target Group"
   value       = module.lb_wordpress.lb_target_group_arn
+}
+
+output "sg_wordpress_id" {
+  description = "The ID of the WordPress instance security group"
+  value       = module.sg_wordpress.sg_wordpress_id
+}
+
+output "sg_bastion_id" {
+  description = "The ID of the bastion instance security group"
+  value       = module.sg_bastion.sg_bastion_id
+}
+
+output "sg_lb_wordpress_id" {
+  description = "The ID of the WordPress load balancer security group"
+  value       = module.sg_lb_wordpress.sg_lb_wordpress_id
+}
+
+output "sg_rds_id" {
+  description = "The ID of the RDS security group"
+  value       = module.sg_rds.sg_rds_id
+}
+
+output "db_instance_arn" {
+  description = "The ARN of the RDS instance"
+  value       = module.rds.db_instance_arn
+}
+
+output "db_instance_endpoint" {
+  description = "The connection endpoint of the RDS instance"
+  value       = module.rds.db_instance_endpoint
+}
+
+output "db_instance_identifier" {
+  description = "The connection endpoint"
+  value       = module.rds.db_instance_identifier
+}
+
+output "main_rds_subnet_group_name" {
+  description = "The name of the RDS subnet group from the module."
+  value       = module.subnets.rds_subnet_group_name
+}
+
+output "main_rds_subnet_group_subnet_ids" {
+  description = "The list of subnet IDs in the RDS subnet group from the module."
+  value       = module.subnets.rds_subnet_group_subnet_ids
+}
+
+output "main_rds_subnet_group_tags" {
+  description = "The tags for the RDS subnet group from the module."
+  value       = module.subnets.rds_subnet_group_tags
+}
+
+output "replica_db_instance_arn" {
+  description = "The Amazon Resource Name (ARN) of the RDS replica instance."
+  value       = module.rds_replica.replica_db_instance_arn
+}
+
+output "replica_db_instance_endpoint" {
+  description = "The connection endpoint for the RDS replica instance."
+  value       = module.rds_replica.replica_db_instance_endpoint
 }

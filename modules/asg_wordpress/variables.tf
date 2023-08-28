@@ -25,17 +25,6 @@ variable "wp_pass" {
   type        = string
 }
 
-# variable "db_username" {
-#   description = "The database username"
-#   type        = string
-# }
-
-# variable "db_password" {
-#   description = "The database password"
-#   type        = string
-#   sensitive   = true
-# }
-
 variable "instance_type" {
   description = "The instance type for the EC2 instances"
   type        = string

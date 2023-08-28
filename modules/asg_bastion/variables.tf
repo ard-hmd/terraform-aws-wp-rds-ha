@@ -58,7 +58,7 @@ variable "health_check_type" {
 
 variable "asg_tag_name" {
   description = "Name tag for the Auto Scaling Group"
-  default     = "HashiCorp Learn ASG - Bastion"
+  default     = "Bastion"
   type        = string
 }
 

@@ -53,19 +53,18 @@ module "route_tables" {
 
 module "asg_wordpress" {
   source              = "./modules/asg_wordpress"
-  wp_host             = "toto"
-  # wp_host             = aws_db_instance.myinstance.endpoint
+  wp_host             = module.rds.db_instance_endpoint
   wp_user             = var.db_username
   wp_pass             = var.db_password
   key_name            = "kp-ahermand"
-  security_group_id   = aws_security_group.wordpress_instance.id
-  depends_on          = [module.gateways.nat] # pas oublié d'ajouter aws_db_instance.myinstance
+  security_group_id   = module.sg_wordpress.sg_wordpress_id
+  depends_on          = [module.gateways.nat, module.rds.aws_db_instance] # pas oublié d'ajouter aws_db_instance.myinstance
   vpc_zone_identifier = module.subnets.private_subnet_ids
 }
 
 module "asg_bastion" {
   source              = "./modules/asg_bastion"
-  security_group_id   = aws_security_group.bastion_instance.id
+  security_group_id   = module.sg_bastion.sg_bastion_id
   vpc_zone_identifier = module.subnets.public_subnet_ids
 }
 
@@ -73,127 +72,45 @@ module "asg_bastion" {
 module "lb_wordpress" {
   source             = "./modules/lb_wordpress"
   lb_name            = "lb-wordpress"
-  security_group_id  = aws_security_group.wordpress_lb.id
+  security_group_id  = module.sg_lb_wordpress.sg_lb_wordpress_id
   public_subnets_ids = module.subnets.public_subnet_ids
   target_group_name  = "lb-tgn-wordpress"
   vpc_id             = module.vpc.vpc_id
   asg_id             = module.asg_wordpress.asg_id
 }
 
+module "sg_wordpress" {
+  source                 = "./modules/sg_wordpress"
+  vpc_id                 = module.vpc.vpc_id
+  wordpress_lb_sg_id     = module.sg_lb_wordpress.sg_lb_wordpress_id
+  bastion_instance_sg_id = module.sg_bastion.sg_bastion_id
+}
 
-# Security Group for EC2 Instances
-resource "aws_security_group" "wordpress_instance" {
-  name = "learn-asg-wordpress-instance"
-
-  ingress {
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    # security_groups = [aws_security_group.wordpress_lb.id]
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # ingress {
-  #   from_port       = 22
-  #   to_port         = 22
-  #   protocol        = "tcp"
-  #   security_groups = [aws_security_group.bastion_instance.id]
-  # }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
+module "sg_bastion" {
+  source = "./modules/sg_bastion"
   vpc_id = module.vpc.vpc_id
 }
 
-# Security Group for EC2 Instances
-resource "aws_security_group" "bastion_instance" {
-  name = "learn-asg-bastion-instance"
-
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
+module "sg_lb_wordpress" {
+  source = "./modules/sg_lb_wordpress"
   vpc_id = module.vpc.vpc_id
 }
 
-# Security Group for Load Balancer
-resource "aws_security_group" "wordpress_lb" {
-  name = "learn-asg-wordpress-lb"
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  vpc_id = module.vpc.vpc_id
+module "sg_rds" {
+  source                 = "./modules/sg_rds"
+  wordpress_instance_sg_id = module.sg_wordpress.sg_wordpress_id
+  vpc_id                 = module.vpc.vpc_id
 }
 
-# resource "aws_security_group" "rds_sg" {
-#   name = "rds_sg"
-#   ingress {
-#     from_port       = 3306
-#     to_port         = 3306
-#     protocol        = "tcp"
-#     security_groups = [aws_security_group.wordpress_instance.id]
-#   }
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+module "rds" {
+  source              = "./modules/rds"
+  db_username         = var.db_username
+  db_password         = var.db_password
+  rds_sg_id           = module.sg_rds.sg_rds_id
+  depends_on          = [module.subnets.main_rds_subnet_group_subnet_ids]
+}
 
-#   vpc_id = aws_vpc.vpc.id
-# }
-
-# variable "db_username" {}
-# variable "db_password" {}
-
-# resource "aws_db_instance" "myinstance" {
-#   engine               = "mysql"
-#   identifier           = "myrdsinstance"
-#   allocated_storage    =  10
-#   engine_version       = "5.7"
-#   instance_class       = "db.t2.micro"
-#   db_name              = "wpdb"
-#   username             = var.db_username
-#   password             = var.db_password
-#   parameter_group_name = "default.mysql5.7"
-#   db_subnet_group_name = "rds_subnet_group"
-#   vpc_security_group_ids = ["${aws_security_group.rds_sg.id}"]
-#   skip_final_snapshot  = true
-#   publicly_accessible =  false
-#   backup_retention_period = 1
-#   depends_on = [aws_db_subnet_group.rds_subnet_group]
-# }
-
-# resource "aws_db_instance" "replica-myinstance" {
-#   instance_class       = "db.t2.micro"
-#   skip_final_snapshot  = true
-#   backup_retention_period = 0
-#   replicate_source_db = aws_db_instance.myinstance.identifier
-# }
+module "rds_replica" {
+  source              = "./modules/rds_replica"
+  replicate_source_db = module.rds.db_instance_identifier
+}

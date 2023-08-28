@@ -3,6 +3,11 @@ output "lb_arn" {
   value       = aws_lb.wordpress.arn
 }
 
+output "lb_dns_name" {
+  description = "ARN of the Load Balancer Target Group"
+  value       = aws_lb.wordpress.dns_name
+}
+
 output "lb_listener_arn" {
   description = "ARN of the Load Balancer Listener"
   value       = aws_lb_listener.wordpress.arn
