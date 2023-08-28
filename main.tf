@@ -14,11 +14,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Locals to define availability zones
-# locals {
-#   availability_zones = ["${var.aws_region}a", "${var.aws_region}b"]
-# }
-
 module "vpc" {
   source = "./modules/vpc"
   vpc_cidr = var.vpc_cidr
@@ -27,294 +22,150 @@ module "vpc" {
 
 module "subnets" {
   source                = "./modules/subnets"
-  vpc_id                = module.vpc.name
+  vpc_id                = module.vpc.vpc_id
   public_subnets_cidr   = var.public_subnets_cidr
   private_subnets_cidr  = var.private_subnets_cidr
   availability_zones    = local.availability_zones
   environment           = var.environment
 }
 
-# # Internet Gateway Configuration
-# resource "aws_internet_gateway" "ig" {
-#   vpc_id = aws_vpc.vpc.id
+module "gateways" {
+  source              = "./modules/gateways"
+  vpc_id              = module.vpc.vpc_id
+  public_subnets_cidr = var.public_subnets_cidr
+  availability_zones  = local.availability_zones
+  public_subnet_ids   = module.subnets.public_subnet_ids
+  environment         = var.environment
+}
 
-#   tags = {
-#     "Name"        = "${var.environment}-igw"
-#     "Environment" = var.environment
-#   }
-# }
+module "route_tables" {
+  source               = "./modules/route_tables"
+  vpc_id               = module.vpc.vpc_id
+  private_subnets_cidr = var.private_subnets_cidr
+  public_subnets_cidr  = var.public_subnets_cidr
+  availability_zones   = local.availability_zones
+  public_subnet_ids    = module.subnets.public_subnet_ids
+  private_subnet_ids   = module.subnets.private_subnet_ids
+  environment          = var.environment
+  internet_gateway_id  = module.gateways.aws_internet_gateway_ids
+  nat_gateway_ids      = module.gateways.nat_gateway_ids
+}
 
-# # Elastic IP for NAT Configuration
-# resource "aws_eip" "nat_eip" {
-#   count      = length(var.public_subnets_cidr)
-#   vpc        = true
-#   # Adding a 'depends_on' here to ensure the NAT Gateway is up and running
-#   # before executing the user data script, allowing it to access the internet
-#   # and install required packages during instance launch.
-#   depends_on = [aws_internet_gateway.ig]
+module "asg_wordpress" {
+  source              = "./modules/asg_wordpress"
+  wp_host             = "toto"
+  # wp_host             = aws_db_instance.myinstance.endpoint
+  wp_user             = var.db_username
+  wp_pass             = var.db_password
+  key_name            = "kp-ahermand"
+  security_group_id   = aws_security_group.wordpress_instance.id
+  depends_on          = [module.gateways.nat] # pas oublié d'ajouter aws_db_instance.myinstance
+  vpc_zone_identifier = module.subnets.private_subnet_ids
+}
 
-#   tags = {
-#     Name        = "${var.environment}-nat-eip-${element(local.availability_zones, count.index)}"
-#     Environment = "${var.environment}"
-#   }
-# }
+module "asg_bastion" {
+  source              = "./modules/asg_bastion"
+  security_group_id   = aws_security_group.bastion_instance.id
+  vpc_zone_identifier = module.subnets.public_subnet_ids
+}
 
-# # NAT Gateway Configuration
-# resource "aws_nat_gateway" "nat" {
-#   count          = length(var.public_subnets_cidr)
-#   allocation_id  = element(aws_eip.nat_eip.*.id, count.index)
-#   subnet_id      = element(aws_subnet.public_subnet.*.id, count.index)
-
-#   tags = {
-#     Name        = "${var.environment}-nat-gateway-${element(local.availability_zones, count.index)}"
-#     Environment = "${var.environment}"
-#   }
-# }
-
-# # Private Route Table Configuration
-# resource "aws_route_table" "private" {
-#   count = length(var.private_subnets_cidr)
-#   vpc_id = aws_vpc.vpc.id
-
-#   tags = {
-#     Name        = "${var.environment}-private-route-table-${element(local.availability_zones, count.index)}"
-#     Environment = "${var.environment}"
-#   }
-# }
-
-# # Public Route Table Configuration
-# resource "aws_route_table" "public" {
-#   vpc_id = aws_vpc.vpc.id
-
-#   tags = {
-#     Name        = "${var.environment}-public-route-table"
-#     Environment = "${var.environment}"
-#   }
-# }
-
-# # Route for Internet Gateway
-# resource "aws_route" "public_internet_gateway" {
-#   route_table_id         = aws_route_table.public.id
-#   destination_cidr_block = "0.0.0.0/0"
-#   gateway_id             = aws_internet_gateway.ig.id
-# }
-
-# # Route for NAT Gateway
-# resource "aws_route" "private_nat_gateway" {
-#   count                 = length(var.private_subnets_cidr)
-#   route_table_id        = element(aws_route_table.private.*.id, count.index)
-#   destination_cidr_block = "0.0.0.0/0"
-#   nat_gateway_id        = element(aws_nat_gateway.nat.*.id, count.index)
-# }
-
-# # Route Table Association for Public Subnets
-# resource "aws_route_table_association" "public" {
-#   count          = length(var.public_subnets_cidr)
-#   subnet_id      = element(aws_subnet.public_subnet.*.id, count.index)
-#   route_table_id = aws_route_table.public.id
-# }
-
-# # Route Table Association for Private Subnets
-# resource "aws_route_table_association" "private" {
-#   count          = length(var.private_subnets_cidr)
-#   subnet_id      = element(aws_subnet.private_subnet.*.id, count.index)
-#   route_table_id = element(aws_route_table.private.*.id, count.index)
-# }
-
-# # Data Source to get the latest Amazon Linux AMI
-# data "aws_ami" "amazon-linux" {
-#   most_recent = true
-#   owners      = ["amazon"]
-
-#   filter {
-#     name   = "image-id"
-#     values = ["ami-0041b98fa770e38cd"]
-#   }
-# }
-
-# data "template_file" "init" {
-#   template = "${file("user-data.sh.tpl")}"
-
-#   vars = {
-#     wp_host = "${aws_db_instance.myinstance.endpoint}"
-#     wp_user = "${var.db_username}"
-#     wp_pass = "${var.db_password}"
-#   }
-# }
-
-# # Launch Configuration for Auto Scaling
-# resource "aws_launch_configuration" "terramino" {
-#   name_prefix     = "learn-terraform-aws-asg-"
-#   image_id        = data.aws_ami.amazon-linux.id
-#   instance_type   = "t2.micro"
-#   # user_data       = file("user-data.sh")
-#   user_data       = "${data.template_file.init.rendered}"
-#   key_name        = "kp-ahermand"
-#   security_groups = [aws_security_group.terramino_instance.id]
-#   depends_on      = [
-#     aws_nat_gateway.nat,
-#     aws_db_instance.myinstance
-#     ]
-
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
-
-# # Auto Scaling Group Configuration
-# resource "aws_autoscaling_group" "terramino" {
-#   name                 = "terramino"
-#   min_size             = 1
-#   max_size             = 2
-#   desired_capacity     = 2
-#   launch_configuration = aws_launch_configuration.terramino.name
-#   vpc_zone_identifier  = aws_subnet.private_subnet.*.id
-#   health_check_type    = "ELB"
-
-#   depends_on = [
-#     aws_launch_configuration.terramino
-#   ]
-
-#   tag {
-#     key                 = "Name"
-#     value               = "HashiCorp Learn ASG - Terramino"
-#     propagate_at_launch = true
-#   }
-
-#   lifecycle {
-#     ignore_changes = [desired_capacity, target_group_arns]
-#   }
-# }
-
-# # Launch Configuration for Auto Scaling
-# resource "aws_launch_configuration" "bastion" {
-#   name_prefix     = "learn-terraform-aws-asg-"
-#   image_id        = data.aws_ami.amazon-linux.id
-#   instance_type   = "t2.micro"
-#   key_name        = "kp-ahermand"
-#   security_groups = [aws_security_group.bastion_instance.id]
-
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
-
-# # Auto Scaling Group Configuration
-# resource "aws_autoscaling_group" "bastion" {
-#   name                 = "bastion"
-#   min_size             = 1
-#   max_size             = 2
-#   desired_capacity     = 1
-#   launch_configuration = aws_launch_configuration.bastion.name
-#   vpc_zone_identifier  = aws_subnet.public_subnet.*.id
-#   health_check_type    = "ELB"
-
-#   tag {
-#     key                 = "Name"
-#     value               = "HashiCorp Learn ASG - Bastion"
-#     propagate_at_launch = true
-#   }
-
-#   lifecycle {
-#     ignore_changes = [desired_capacity, target_group_arns]
-#   }
-# }
 
 # # Load Balancer Configuration
-# resource "aws_lb" "terramino" {
-#   name               = "learn-asg-terramino-lb"
+# resource "aws_lb" "wordpress" {
+#   name               = "learn-asg-wordpress-lb"
 #   internal           = false
 #   load_balancer_type = "application"
-#   security_groups    = [aws_security_group.terramino_lb.id]
+#   security_groups    = [aws_security_group.wordpress_lb.id]
 #   subnets            = aws_subnet.public_subnet.*.id
 # }
 
 # # Load Balancer Listener Configuration
-# resource "aws_lb_listener" "terramino" {
-#   load_balancer_arn = aws_lb.terramino.arn
+# resource "aws_lb_listener" "wordpress" {
+#   load_balancer_arn = aws_lb.wordpress.arn
 #   port              = "80"
 #   protocol          = "HTTP"
 
 #   depends_on = [
-#     aws_autoscaling_group.terramino
+#     aws_autoscaling_group.wordpress
 #   ]
 
 #   default_action {
 #     type             = "forward"
-#     target_group_arn = aws_lb_target_group.terramino.arn
+#     target_group_arn = aws_lb_target_group.wordpress.arn
 #   }
 # }
 
 # # Load Balancer Target Group Configuration
-# resource "aws_lb_target_group" "terramino" {
-#   name     = "learn-asg-terramino"
+# resource "aws_lb_target_group" "wordpress" {
+#   name     = "learn-asg-wordpress"
 #   port     = 80
 #   protocol = "HTTP"
 #   vpc_id   = aws_vpc.vpc.id
 
 #   depends_on = [
-#     aws_autoscaling_group.terramino
+#     aws_autoscaling_group.wordpress
 #   ]
 # }
 
 # # Auto Scaling Attachment Configuration
-# resource "aws_autoscaling_attachment" "terramino" {
-#   autoscaling_group_name = aws_autoscaling_group.terramino.id
-#   alb_target_group_arn   = aws_lb_target_group.terramino.arn
+# resource "aws_autoscaling_attachment" "wordpress" {
+#   autoscaling_group_name = aws_autoscaling_group.wordpress.id
+#   alb_target_group_arn   = aws_lb_target_group.wordpress.arn
 # }
 
-# # Security Group for EC2 Instances
-# resource "aws_security_group" "terramino_instance" {
-#   name = "learn-asg-terramino-instance"
+# Security Group for EC2 Instances
+resource "aws_security_group" "wordpress_instance" {
+  name = "learn-asg-wordpress-instance"
 
-#   ingress {
-#     from_port       = 80
-#     to_port         = 80
-#     protocol        = "tcp"
-#     security_groups = [aws_security_group.terramino_lb.id]
-#   }
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    # security_groups = [aws_security_group.wordpress_lb.id]
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   ingress {
-#     from_port       = 22
-#     to_port         = 22
-#     protocol        = "tcp"
-#     security_groups = [aws_security_group.bastion_instance.id]
-#   }
+  # ingress {
+  #   from_port       = 22
+  #   to_port         = 22
+  #   protocol        = "tcp"
+  #   security_groups = [aws_security_group.bastion_instance.id]
+  # }
 
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   vpc_id = aws_vpc.vpc.id
-# }
+  vpc_id = module.vpc.vpc_id
+}
 
-# # Security Group for EC2 Instances
-# resource "aws_security_group" "bastion_instance" {
-#   name = "learn-asg-bastion-instance"
+# Security Group for EC2 Instances
+resource "aws_security_group" "bastion_instance" {
+  name = "learn-asg-bastion-instance"
 
-#   ingress {
-#     from_port       = 22
-#     to_port         = 22
-#     protocol        = "tcp"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   egress {
-#     from_port   = 0
-#     to_port     = 0
-#     protocol    = "-1"
-#     cidr_blocks = ["0.0.0.0/0"]
-#   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-#   vpc_id = aws_vpc.vpc.id
-# }
+  vpc_id = module.vpc.vpc_id
+}
 
 # # Security Group for Load Balancer
-# resource "aws_security_group" "terramino_lb" {
-#   name = "learn-asg-terramino-lb"
+# resource "aws_security_group" "wordpress_lb" {
+#   name = "learn-asg-wordpress-lb"
 
 #   ingress {
 #     from_port   = 80
@@ -339,7 +190,7 @@ module "subnets" {
 #     from_port       = 3306
 #     to_port         = 3306
 #     protocol        = "tcp"
-#     security_groups = [aws_security_group.terramino_instance.id]
+#     security_groups = [aws_security_group.wordpress_instance.id]
 #   }
 #   egress {
 #     from_port   = 0
