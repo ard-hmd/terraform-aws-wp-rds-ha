@@ -1,7 +1,9 @@
+# Variable: VPC CIDR Block
 variable "vpc_cidr" {
-  description = "CIDR block du VPC"
+  description = "CIDR block of the VPC"
 }
 
+# Variable: VPC Environment
 variable "environment" {
-  description = "Environnement du VPC"
+  description = "Environment of the VPC"
 }
