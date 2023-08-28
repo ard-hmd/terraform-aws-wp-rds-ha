@@ -32,4 +32,13 @@ variable "private_subnets_cidr" {
   default     = ["10.0.16.0/20", "10.0.144.0/20"]
   description = "CIDR block for Private Subnet"
 }
+variable "db_username" {
+  description = "The database username"
+  type        = string
+}
 
+variable "db_password" {
+  description = "The database password"
+  type        = string
+  sensitive   = true
+}
