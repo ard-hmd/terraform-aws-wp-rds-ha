@@ -19,7 +19,7 @@ variable "engine_version" {
 # Define the DB instance class
 variable "instance_class" {
   description = "The DB instance class"  # Describing the purpose of the variable
-  default     = "db.t2.micro"  # Providing a default value
+  default     = "db.t3.micro"  # Providing a default value
 }
 
 # Define the name of the database
